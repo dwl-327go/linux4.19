@@ -189,7 +189,8 @@ static void __init exynos_dt_fixup(void)
 	of_fdt_limit_memory(8);
 }
 
-DT_MACHINE_START(EXYNOS_DT, "SAMSUNG EXYNOS (Flattened Device Tree)")
+#if 1
+DT_MACHINE_START(TINY4412, "SAMSUNG TINY4412")
 	.l2c_aux_val	= 0x3c400001,
 	.l2c_aux_mask	= 0xc20fffff,
 	.smp		= smp_ops(exynos_smp_ops),
@@ -201,3 +202,17 @@ DT_MACHINE_START(EXYNOS_DT, "SAMSUNG EXYNOS (Flattened Device Tree)")
 	.dt_compat	= exynos_dt_compat,
 	.dt_fixup	= exynos_dt_fixup,
 MACHINE_END
+#else
+MACHINE_START(TINY4412, "TINY4412")
+	.l2c_aux_val	= 0x3c400001,
+	.l2c_aux_mask	= 0xc20fffff,
+	.smp		= smp_ops(exynos_smp_ops),
+	.map_io		= exynos_init_io,
+	.init_early	= exynos_firmware_init,
+	.init_irq	= exynos_init_irq,
+	.init_machine	= exynos_dt_machine_init,
+	.init_late	= exynos_pm_init,
+	.dt_compat	= exynos_dt_compat,
+	.dt_fixup	= exynos_dt_fixup,
+MACHINE_END
+#endif

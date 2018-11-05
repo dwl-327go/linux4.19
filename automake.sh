@@ -10,6 +10,8 @@ fi
 ARCH=arm
 CROSS_COMPILE=arm-none-eabi-
 
+make tiny4412_defconfig
+
 echo	"\tARCH=${ARCH}\n"\
 		"\tCROSS_COMPILE=${CROSS_COMPILE}\n"\
 		"\t${LOADADDR}\n"

@@ -20,6 +20,7 @@
 #
 # machine_is_xxx	CONFIG_xxxx		MACH_TYPE_xxx		number
 #
+tiny4412		MACH_TINY4412		TINY4412		4608
 ebsa110			ARCH_EBSA110		EBSA110			0
 riscpc			ARCH_RPC		RISCPC			1
 ebsa285			ARCH_EBSA285		EBSA285			4
