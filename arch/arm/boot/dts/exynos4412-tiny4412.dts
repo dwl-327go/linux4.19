@@ -29,29 +29,10 @@
 		compatible = "gpio-leds";
 
 		led1 {
-			label = "led1";
-			gpios = <&gpm4 0 GPIO_ACTIVE_LOW>;
-			default-state = "off";
-			linux,default-trigger = "heartbeat";
-		};
-
-		led2 {
-			label = "led2";
-			gpios = <&gpm4 1 GPIO_ACTIVE_LOW>;
-			default-state = "off";
-		};
-
-		led3 {
-			label = "led3";
-			gpios = <&gpm4 2 GPIO_ACTIVE_LOW>;
-			default-state = "off";
-		};
-
-		led4 {
 			label = "led4";
 			gpios = <&gpm4 3 GPIO_ACTIVE_LOW>;
 			default-state = "off";
-			linux,default-trigger = "mmc0";
+			linux,default-trigger = "heartbeat";
 		};
 	};
 
@@ -65,6 +46,44 @@
 			compatible = "samsung,clock-xusbxti";
 			clock-frequency = <24000000>;
 		};
+	};
+
+	usb-hub {
+		compatible = "smsc, usb4640";
+		reset-gpios = <&gpm2 4 GPIO_ACTIVE_LOW>;
+		initial-mode = <1>;
+		status = "okay";
+	};
+};
+
+&mshc_0 {
+	pinctrl-0 = <&sd4_clk &sd4_cmd &sd4_bus4 &sd4_bus8>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	broken-cd;
+	card-detect-delay = <200>;
+	samsung,dw-mshc-ciu-div = <3>;
+	samsung,dw-mshc-sdr-timing = <2 3>;
+	samsung,dw-mshc-ddr-timing = <1 2>;
+	bus-width = <8>;
+	cap-mmc-highspeed;
+};
+
+&exynos_usbphy {
+	status = "okay";
+};
+
+&ehci {
+	status = "okay";
+	port@0 {
+		status = "okay";
+	};
+	port@1 {
+		status = "okay";
+	};
+	port@2 {
+		status = "okay";
 	};
 };
 
@@ -83,14 +102,3 @@
 	status = "okay";
 };
 
-&serial_1 {
-	status = "okay";
-};
-
-&serial_2 {
-	status = "okay";
-};
-
-&serial_3 {
-	status = "okay";
-};
