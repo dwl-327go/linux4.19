@@ -10,8 +10,11 @@
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/gpio.h>
+#include <linux/of_gpio.h>
 #include <linux/module.h>
 #include <linux/gpio/consumer.h>
+#include <linux/platform_device.h>
 
 enum usb4604_mode {
 	USB4604_MODE_UNKNOWN,
@@ -22,32 +25,28 @@ enum usb4604_mode {
 struct usb4604 {
 	enum usb4604_mode	mode;
 	struct device		*dev;
-	struct gpio_desc	*gpio_reset;
+	int					gpio_reset;
+};
+
+struct usb4604_platform_data {
+	enum usb4604_mode	init_mode;
+	int					gpio_reset;
 };
 
 static void usb4604_reset(struct usb4604 *hub, int state)
 {
-	gpiod_set_value_cansleep(hub->gpio_reset, state);
+	if (gpio_is_valid(hub->gpio_reset))
+		gpio_set_value_cansleep(hub->gpio_reset, state);
 
-	/* Wait for i2c logic to come up */
 	if (state)
-		msleep(250);
+		usleep_range(4000, 10000);
 }
 
 static int usb4604_connect(struct usb4604 *hub)
 {
 	struct device *dev = hub->dev;
-	struct i2c_client *client = to_i2c_client(dev);
-	int err;
-	u8 connect_cmd[] = { 0xaa, 0x55, 0x00 };
 
 	usb4604_reset(hub, 1);
-
-	err = i2c_master_send(client, connect_cmd, ARRAY_SIZE(connect_cmd));
-	if (err < 0) {
-		usb4604_reset(hub, 0);
-		return err;
-	}
 
 	hub->mode = USB4604_MODE_HUB;
 	dev_dbg(dev, "switched to HUB mode\n");
@@ -82,66 +81,50 @@ static int usb4604_switch_mode(struct usb4604 *hub, enum usb4604_mode mode)
 static int usb4604_probe(struct usb4604 *hub)
 {
 	struct device *dev = hub->dev;
+	struct usb4604_platform_data *pdata = dev_get_platdata(dev);
 	struct device_node *np = dev->of_node;
-	struct gpio_desc *gpio;
+
 	u32 mode = USB4604_MODE_HUB;
 
-	gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
-	if (IS_ERR(gpio))
-		return PTR_ERR(gpio);
-	hub->gpio_reset = gpio;
-
-	if (of_property_read_u32(np, "initial-mode", &hub->mode))
+	if (pdata) {
+		hub->gpio_reset = pdata->gpio_reset;
+		hub->mode = pdata->init_mode;
+	} else if (np) {
+		hub->gpio_reset = of_get_named_gpio(np, "reset-gpios", 0);
+		if (hub->gpio_reset == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+		of_property_read_u32(np, "initial-mode", &mode);
 		hub->mode = mode;
+	}
+
+	if (gpio_is_valid(hub->gpio_reset)) {
+		int err = devm_gpio_request_one(dev, hub->gpio_reset,
+					GPIOF_OUT_INIT_LOW, "usb4604 reset");
+		if (err) {
+			dev_err(dev,
+				"unable to request GPIO %d as connect pin (%d)\n",
+				hub->gpio_reset, err);
+			return err;
+		}
+	}
 
 	return usb4604_switch_mode(hub, hub->mode);
 }
 
-static int usb4604_i2c_probe(struct i2c_client *i2c,
-			     const struct i2c_device_id *id)
+static int usb4604_platform_probe(struct platform_device *pdev)
 {
 	struct usb4604 *hub;
 
-	hub = devm_kzalloc(&i2c->dev, sizeof(*hub), GFP_KERNEL);
+	hub = devm_kzalloc(&pdev->dev, sizeof(*hub), GFP_KERNEL);
 	if (!hub)
 		return -ENOMEM;
 
-	i2c_set_clientdata(i2c, hub);
-	hub->dev = &i2c->dev;
+	hub->dev = &pdev->dev;
+	platform_set_drvdata(pdev, hub);
 
 	return usb4604_probe(hub);
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int usb4604_i2c_suspend(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct usb4604 *hub = i2c_get_clientdata(client);
-
-	usb4604_switch_mode(hub, USB4604_MODE_STANDBY);
-
-	return 0;
-}
-
-static int usb4604_i2c_resume(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct usb4604 *hub = i2c_get_clientdata(client);
-
-	usb4604_switch_mode(hub, hub->mode);
-
-	return 0;
-}
-#endif
-
-static SIMPLE_DEV_PM_OPS(usb4604_i2c_pm_ops, usb4604_i2c_suspend,
-		usb4604_i2c_resume);
-
-static const struct i2c_device_id usb4604_id[] = {
-	{ "usb4604", 0 },
-	{ }
-};
-MODULE_DEVICE_TABLE(i2c, usb4604_id);
 
 #ifdef CONFIG_OF
 static const struct of_device_id usb4604_of_match[] = {
@@ -151,16 +134,32 @@ static const struct of_device_id usb4604_of_match[] = {
 MODULE_DEVICE_TABLE(of, usb4604_of_match);
 #endif
 
-static struct i2c_driver usb4604_i2c_driver = {
+static struct platform_driver usb4604_platform_driver = {
 	.driver = {
-		.name = "usb4604",
-		.pm = &usb4604_i2c_pm_ops,
+		.name			= "usb4604",
 		.of_match_table = of_match_ptr(usb4604_of_match),
 	},
-	.probe		= usb4604_i2c_probe,
-	.id_table	= usb4604_id,
+	.probe	= usb4604_platform_probe,
 };
-module_i2c_driver(usb4604_i2c_driver);
+
+static int __init usb4604_init(void)
+{
+	int err;
+
+	err = platform_driver_register(&usb4604_platform_driver);
+	if (err)
+		pr_err("usb4604 :Failed to register platform driver :%d\n",
+				err);
+	return 0;
+}
+module_init(usb4604_init);
+
+static void __exit usb4604_exit(void)
+{
+	platform_driver_unregister(&usb4604_platform_driver);
+}
+module_exit(usb4604_exit);
+
 
 MODULE_DESCRIPTION("USB4604 USB HUB driver");
 MODULE_LICENSE("GPL v2");
