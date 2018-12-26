@@ -29,7 +29,7 @@ struct usb4604 {
 };
 
 struct usb4604_platform_data {
-	enum usb4604_mode	init_mode;
+	enum usb4604_mode	initial_mode;
 	int					gpio_reset;
 };
 
@@ -85,10 +85,11 @@ static int usb4604_probe(struct usb4604 *hub)
 	struct device_node *np = dev->of_node;
 
 	u32 mode = USB4604_MODE_HUB;
+	
 
 	if (pdata) {
 		hub->gpio_reset = pdata->gpio_reset;
-		hub->mode = pdata->init_mode;
+		hub->mode = pdata->initial_mode;
 	} else if (np) {
 		hub->gpio_reset = of_get_named_gpio(np, "reset-gpios", 0);
 		if (hub->gpio_reset == -EPROBE_DEFER)
@@ -145,7 +146,7 @@ static struct platform_driver usb4604_platform_driver = {
 static int __init usb4604_init(void)
 {
 	int err;
-
+	
 	err = platform_driver_register(&usb4604_platform_driver);
 	if (err)
 		pr_err("usb4604 :Failed to register platform driver :%d\n",

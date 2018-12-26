@@ -49,7 +49,7 @@
 	};
 
 	usb-hub {
-		compatible = "smsc, usb4640";
+		compatible = "smsc,usb4604";
 		reset-gpios = <&gpm2 4 GPIO_ACTIVE_LOW>;
 		initial-mode = <1>;
 		status = "okay";
@@ -85,6 +85,17 @@
 	port@2 {
 		status = "okay";
 	};
+};
+
+&ohci {
+	status = "okay";
+	port@0 {
+		status = "okay";
+	};
+};
+
+&hsotg {
+	status = "okay";
 };
 
 &rtc {
