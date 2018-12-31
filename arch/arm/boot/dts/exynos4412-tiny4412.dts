@@ -54,6 +54,11 @@
 		initial-mode = <1>;
 		status = "okay";
 	};
+
+	hello {
+		compatible = "tiny4412,hello_world";
+		status = "okay";
+	};
 };
 
 &mshc_0 {
